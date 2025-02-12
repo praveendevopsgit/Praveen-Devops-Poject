@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+
+    environment {
+        
+        IMAGE_TAG = "my-app:${BUILD_NUMBER}"
+        DOCKER_REGISTRY = "docker.io"
+        DOCKER_IMAGE_NAME = "praveendevopsgit/Praveen-Devops-Project" 
+        K8S_NAMESPACE = "default"  
+    }
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                
+                git 'https://github.com/praveendevopsgit/Praveen-Devops-Poject.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    
+                    sh 'docker build -t $DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$IMAGE_TAG .'
+                }
+            }
+        }
+
+        stage('Push Docker Image to Registry') {
+            steps {
+                script {
+                    
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
+                    }
+
+                    
+                    sh 'docker push $DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$IMAGE_TAG'
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    
+                    withCredentials([kubeconfigFile(credentialsId: 'k8s-credentials', variable: 'KUBECONFIG')]) {
+                        sh 'kubectl apply -f deployment.yaml --kubeconfig=$KUBECONFIG'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully.'
+        }
+        failure {
+            echo 'Pipeline failed.'
+        }
+    }
+}
